@@ -32,7 +32,7 @@ def determine_libc(d, thing):
     return libc
 
 # Responsible for taking Yocto triples and converting it to Rust triples
-def rust_base_triple(d, thing):
+def rust_base_triple(d, thing, feat):
     '''
     Mangle bitbake's *_SYS into something that rust might support (see
     rust/mk/cfg/* for a list)
@@ -41,6 +41,14 @@ def rust_base_triple(d, thing):
     '''
 
     arch = d.getVar('{}_ARCH'.format(thing))
+    if 'arm' in arch:
+        if 'armv5' in feat:
+            arch = "armv5te"
+        elif 'armv6' in feat:
+            arch = "armv6"
+        elif 'armv7' in feat:
+            arch = "armv7"
+
     # All the Yocto targets are Linux and are 'unknown'
     vendor = "-unknown"
     os = d.getVar('{}_OS'.format(thing))
@@ -85,9 +93,9 @@ def rust_base_triple(d, thing):
 # The way that Rust's internal triples and Yocto triples are mapped together
 # its likely best to not use the triple suffix due to potential confusion.
 
-RUST_BUILD_SYS = "${@rust_base_triple(d, 'BUILD')}"
-RUST_HOST_SYS = "${@rust_base_triple(d, 'HOST')}"
-RUST_TARGET_SYS = "${@rust_base_triple(d, 'TARGET')}"
+RUST_BUILD_SYS = "${@rust_base_triple(d, 'BUILD', '')}"
+RUST_HOST_SYS = "${@rust_base_triple(d, 'HOST', '')}"
+RUST_TARGET_SYS = "${@rust_base_triple(d, 'TARGET', d.getVar('TUNE_FEATURES'))}"
 
 # wrappers to get around the fact that Rust needs a single
 # binary but Yocto's compiler and linker commands have

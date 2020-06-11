@@ -77,6 +77,8 @@ def llvm_features_from_tune(d):
         f.append("+v7")
     if ('armv6' in mach_overrides) or ('armv6' in feat):
         f.append("+v6")
+    if ('armv5' in mach_overrides) or ('armv5' in feat):
+        f.append("+strict-align,+v5")
 
     if 'dsp' in feat:
         f.append("+dsp")
@@ -146,12 +148,12 @@ def llvm_features(d):
                     llvm_features_from_target_fpu(d))
 
 ## arm-unknown-linux-gnueabihf
-DATA_LAYOUT[arm] = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
+DATA_LAYOUT[arm] = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
 LLVM_TARGET[arm] = "${RUST_TARGET_SYS}"
 TARGET_ENDIAN[arm] = "little"
 TARGET_POINTER_WIDTH[arm] = "32"
 TARGET_C_INT_WIDTH[arm] = "32"
-MAX_ATOMIC_WIDTH[arm] = "64"
+MAX_ATOMIC_WIDTH[arm] = "32"
 FEATURES[arm] = "+v6,+vfp2"
 
 ## aarch64-unknown-linux-{gnu, musl}
