@@ -78,7 +78,7 @@ def llvm_features_from_tune(d):
     if ('armv6' in mach_overrides) or ('armv6' in feat):
         f.append("+v6")
     if ('armv5' in mach_overrides) or ('armv5' in feat):
-        f.append("+strict-align,+v5")
+        f.append("+strict-align,+armv5te")
 
     if 'dsp' in feat:
         f.append("+dsp")
