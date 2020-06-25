@@ -153,6 +153,7 @@ LLVM_TARGET[arm] = "${RUST_TARGET_SYS}"
 TARGET_ENDIAN[arm] = "little"
 TARGET_POINTER_WIDTH[arm] = "32"
 TARGET_C_INT_WIDTH[arm] = "32"
+# MAX_ATOMIC_WIDTH[arm] should be 64 bits for other arm platforms but is set to 32 for now to support armv5
 MAX_ATOMIC_WIDTH[arm] = "32"
 FEATURES[arm] = "+v6,+vfp2"
 
