@@ -15,16 +15,23 @@ BASEDEPENDS_append = " cargo-native"
 DEPENDS_append_class-target = " virtual/${TARGET_PREFIX}rust ${RUSTLIB_DEP}"
 DEPENDS_append_class-native = " rust-native"
 
-# Cargo only supports in-tree builds at the moment
-B = "${S}"
+# Enable build separation
+B = "${WORKDIR}/build"
 
 # In case something fails in the build process, give a bit more feedback on
 # where the issue occured
 export RUST_BACKTRACE = "1"
 
+# The directory of the Cargo.toml relative to the root directory, per default
+# assume there's a Cargo.toml directly in the root directory
+CARGO_SRC_DIR ??= ""
+
+# The actual path to the Cargo.toml
+MANIFEST_PATH ??= "${S}/${CARGO_SRC_DIR}/Cargo.toml"
+
 RUSTFLAGS ??= ""
 BUILD_MODE = "${@['--release', ''][d.getVar('DEBUG_BUILD') == '1']}"
-CARGO_BUILD_FLAGS = "-v --target ${HOST_SYS} ${BUILD_MODE}"
+CARGO_BUILD_FLAGS = "-v --target ${HOST_SYS} ${BUILD_MODE} --manifest-path=${MANIFEST_PATH}"
 
 # This is based on the content of CARGO_BUILD_FLAGS and generally will need to
 # change if CARGO_BUILD_FLAGS changes.
@@ -54,6 +61,17 @@ cargo_do_install () {
 			install -d "${D}${rustlibdir}"
 			install -m755 "$tgt" "${D}${rustlibdir}"
 			have_installed=true
+			;;
+		*examples)
+			if [ -d "$tgt" ]; then
+				for example in "$tgt/"*; do
+					if [ -f "$example" ] && [ -x "$example" ]; then
+						install -d "${D}${bindir}"
+						install -m755 "$example" "${D}${bindir}"
+						have_installed=true
+					fi
+				done
+			fi
 			;;
 		*)
 			if [ -f "$tgt" ] && [ -x "$tgt" ]; then

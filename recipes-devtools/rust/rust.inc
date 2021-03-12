@@ -2,12 +2,18 @@ SUMMARY = "Rust compiler and runtime libaries"
 HOMEPAGE = "http://www.rust-lang.org"
 SECTION = "devel"
 LICENSE = "MIT | Apache-2.0"
+LIC_FILES_CHKSUM = "file://COPYRIGHT;md5=93a95682d51b4cb0a633a97046940ef0"
 
 inherit rust
 inherit cargo_common
 
+SRC_URI += "file://riscv-march.patch"
+SRC_URI += "file://rv64gc.patch"
+
 DEPENDS += "file-native python3-native"
 DEPENDS_append_class-native = " rust-llvm-native"
+
+S = "${RUSTSRC}"
 
 # We generate local targets, and need to be able to locate them
 export RUST_TARGET_PATH="${WORKDIR}/targets/"
@@ -63,21 +69,18 @@ def llvm_features_from_tune(d):
     if 'neon' in feat:
         f.append("+neon")
 
-    if 'aarch64' in feat:
-        f.append("+v8")
-
     if 'mips32' in feat:
         f.append("+mips32")
 
     if 'mips32r2' in feat:
         f.append("+mips32r2")
 
-    v7=frozenset(['armv7a', 'armv7r', 'armv7m', 'armv7ve'])
-    if (not mach_overrides.isdisjoint(v7)) or (not feat.isdisjoint(v7)):
-        f.append("+v7")
+    if target_is_armv7(d):
+        f.append('+v7')
+
     if ('armv6' in mach_overrides) or ('armv6' in feat):
         f.append("+v6")
-    if ('armv5' in mach_overrides) or ('armv5' in feat):
+    if target_is_armv5te(d):
         f.append("+strict-align,+armv5te")
 
     if 'dsp' in feat:
@@ -85,8 +88,8 @@ def llvm_features_from_tune(d):
 
     if 'thumb' in feat:
         if d.getVar('ARM_THUMB_OPT') is "thumb":
-            if (not mach_overrides.isdisjoint(v7)) or (not feat.isdisjoint(v7)):
-                f.append("+thumb2")
+            if target_is_armv7(d):
+                f.append('+thumb2')
             f.append("+thumb-mode")
 
     if 'cortexa5' in feat:
@@ -99,7 +102,8 @@ def llvm_features_from_tune(d):
         f.append("+a15")
     if 'cortexa17' in feat:
         f.append("+a17")
-
+    if ('riscv64' in feat) or ('riscv32' in feat):
+        f.append("+a,+c,+d,+f,+m")
     return f
 
 # TARGET_CC_ARCH changes from build/cross/target so it'll do the right thing
@@ -148,14 +152,32 @@ def llvm_features(d):
                     llvm_features_from_target_fpu(d))
 
 ## arm-unknown-linux-gnueabihf
-DATA_LAYOUT[arm] = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
+DATA_LAYOUT[arm] = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
 LLVM_TARGET[arm] = "${RUST_TARGET_SYS}"
 TARGET_ENDIAN[arm] = "little"
 TARGET_POINTER_WIDTH[arm] = "32"
 TARGET_C_INT_WIDTH[arm] = "32"
-# MAX_ATOMIC_WIDTH[arm] should be 64 bits for other arm platforms but is set to 32 for now to support armv5
-MAX_ATOMIC_WIDTH[arm] = "32"
+MAX_ATOMIC_WIDTH[arm] = "64"
 FEATURES[arm] = "+v6,+vfp2"
+
+## armv5te-unknown-linux-gnueabihf
+DATA_LAYOUT[armv5te] = "e-m:e-p:32:32-Fi8-i64:64-v128:64:128-a:0:32-n32-S64"
+LLVM_TARGET[armv5te] = "${RUST_TARGET_SYS}"
+TARGET_ENDIAN[armv5te] = "little"
+TARGET_POINTER_WIDTH[armv5te] = "32"
+TARGET_C_INT_WIDTH[armv5te] = "32"
+MAX_ATOMIC_WIDTH[armv5te] = "32"
+FEATURES[armv5te] = "+strict-align,+armv5te,+soft-float,+dsp"
+
+
+## armv7-unknown-linux-gnueabihf
+DATA_LAYOUT[armv7] = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
+LLVM_TARGET[armv7] = "${RUST_TARGET_SYS}"
+TARGET_ENDIAN[armv7] = "little"
+TARGET_POINTER_WIDTH[armv7] = "32"
+TARGET_C_INT_WIDTH[armv7] = "32"
+MAX_ATOMIC_WIDTH[armv7] = "64"
+FEATURES[armv7] = "+v7,+vfp2,+thumb2"
 
 ## aarch64-unknown-linux-{gnu, musl}
 DATA_LAYOUT[aarch64] = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
@@ -229,8 +251,16 @@ TARGET_POINTER_WIDTH[powerpc] = "32"
 TARGET_C_INT_WIDTH[powerpc] = "32"
 MAX_ATOMIC_WIDTH[powerpc] = "32"
 
+## powerpc64le-unknown-linux-{gnu, musl}
+DATA_LAYOUT[powerpc64le] = "e-m:e-i64:64-n32:64-v256:256:256-v512:512:512"
+LLVM_TARGET[powerpc64le] = "${RUST_TARGET_SYS}"
+TARGET_ENDIAN[powerpc64le] = "little"
+TARGET_POINTER_WIDTH[powerpc64le] = "64"
+TARGET_C_INT_WIDTH[powerpc64le] = "64"
+MAX_ATOMIC_WIDTH[powerpc64le] = "64"
+
 ## riscv32-unknown-linux-{gnu, musl}
-DATA_LAYOUT[riscv32] = "e-m:e-p:64:64-i64:64-i128:128-n64-S128"
+DATA_LAYOUT[riscv32] = "e-m:e-p:32:32-i64:64-n32-S128"
 LLVM_TARGET[riscv32] = "${RUST_TARGET_SYS}"
 TARGET_ENDIAN[riscv32] = "little"
 TARGET_POINTER_WIDTH[riscv32] = "32"
@@ -244,9 +274,6 @@ TARGET_ENDIAN[riscv64] = "little"
 TARGET_POINTER_WIDTH[riscv64] = "64"
 TARGET_C_INT_WIDTH[riscv64] = "64"
 MAX_ATOMIC_WIDTH[riscv64] = "64"
-
-def arch_for(d, thing):
-    return d.getVar('{}_ARCH'.format(thing))
 
 def sys_for(d, thing):
     return d.getVar('{}_SYS'.format(thing))
@@ -263,37 +290,53 @@ def arch_to_rust_target_arch(arch):
         return "mips"
     elif arch == "mip64sel":
         return "mips64"
+    elif arch == "armv7":
+        return "arm"
+    elif arch == "armv5te":
+        return "arm"
     else:
         return arch
 
 # generates our target CPU value
 def llvm_cpu(d):
-    cpu = d.getVar('PACKAGE_ARCH')
-    target = d.getVar('TRANSLATED_TARGET_ARCH')
-
+    # First check if TUNE_CCARGS gives us a specific CPU to build for (via -march).
+    # Translate that GCC -march flag to a Rust/LLVM CPU.
     trans = {}
-    trans['corei7-64'] = "corei7"
-    trans['core2-32'] = "core2"
-    trans['x86-64'] = "x86-64"
-    trans['i686'] = "i686"
+    trans['btver2'] = "btver2"
+    trans['core2'] = "core2"
+    trans['mips32'] = "mips32"
+    trans['mips32r2'] = "mips32r2"
+    trans['nehalem'] = "nehalem"
+    trans['skylake'] = "skylake"
+
+    for arg in (d.getVar('TUNE_CCARGS') or '').split():
+        if arg.startswith('-march='):
+            march = arg[7:]
+            cpu = trans.get(march)
+            if cpu:
+                return cpu
+
+    # If we don't have -march in TUNE_CCARGS, check TRANSLATED_TARGET_ARCH.
+    # This must also be translated into a Rust/LLVM CPU.
+    trans = {}
     trans['i586'] = "i586"
-    trans['powerpc'] = "powerpc"
+    trans['i686'] = "i686"
     trans['mips64'] = "mips64"
     trans['mips64el'] = "mips64"
+    trans['powerpc'] = "ppc"
+    trans['powerpc64'] = "ppc64"
+    trans['riscv32'] = "generic-rv32"
+    trans['riscv64'] = "generic-rv64"
+    trans['x86-64'] = "x86-64"
 
-    if target in ["mips", "mipsel"]:
-        feat = frozenset(d.getVar('TUNE_FEATURES').split())
-        if "mips32r2" in feat:
-            trans['mipsel'] = "mips32r2"
-            trans['mips'] = "mips32r2"
-        elif "mips32" in feat:
-            trans['mipsel'] = "mips32"
-            trans['mips'] = "mips32"
+    target = d.getVar('TRANSLATED_TARGET_ARCH')
+    cpu = trans.get(target)
+    if cpu:
+        return cpu
 
-    try:
-        return trans[cpu]
-    except:
-        return trans.get(target, "generic")
+    # If we still didn't get a target CPU, choose "generic".
+    # Further optimization can still happen via llvm_features.
+    return "generic"
 
 TARGET_LLVM_CPU="${@llvm_cpu(d)}"
 TARGET_LLVM_FEATURES = "${@llvm_features(d)}"
@@ -302,10 +345,8 @@ TARGET_LLVM_FEATURES = "${@llvm_features(d)}"
 # (original) target.
 TARGET_LLVM_FEATURES_class-native = "${@','.join(llvm_features_from_cc_arch(d))}"
 
-def rust_gen_target(d, thing, wd, features, cpu):
+def rust_gen_target(d, thing, wd, features, cpu, arch):
     import json
-    from distutils.version import LooseVersion
-    arch = arch_for(d, thing)
     sys = sys_for(d, thing)
     prefix = prefix_for(d, thing)
 
@@ -326,6 +367,10 @@ def rust_gen_target(d, thing, wd, features, cpu):
         tspec['env'] = "musl"
     else:
         tspec['env'] = "gnu"
+    if "riscv64" in tspec['llvm-target']:
+        tspec['llvm-abiname'] = "lp64d"
+    if "riscv32" in tspec['llvm-target']:
+        tspec['llvm-abiname'] = "ilp32d"
     tspec['vendor'] = "unknown"
     tspec['target-family'] = "unix"
     tspec['linker'] = "{}{}gcc".format(d.getVar('CCACHE'), prefix)
@@ -342,20 +387,14 @@ def rust_gen_target(d, thing, wd, features, cpu):
     tspec['position-independent-executables'] = True
     tspec['panic-strategy'] = d.getVar("RUST_PANIC_STRATEGY")
 
-    # Don't use jemalloc as it doesn't work for many targets.
-    # https://github.com/rust-lang/rust/pull/37392
-    # From 1.20.0 and forward, system allocator is the default.
-    if LooseVersion(d.getVar("PV")) < LooseVersion("1.20.0"):
-        tspec['exe-allocation-crate'] = "alloc_system"
-        tspec['lib-allocation-crate'] = "alloc_system"
-
     # write out the target spec json file
     with open(wd + sys + '.json', 'w') as f:
         json.dump(tspec, f, indent=4)
 
 python do_rust_gen_targets () {
     wd = d.getVar('WORKDIR') + '/targets/'
-    rust_gen_target(d, 'BUILD', wd, "", "generic")
+    build_arch = d.getVar('BUILD_ARCH')
+    rust_gen_target(d, 'BUILD', wd, "", "generic", build_arch)
 }
 
 addtask rust_gen_targets after do_patch before do_compile
@@ -377,7 +416,6 @@ do_rust_setup_snapshot[dirs] += "${WORKDIR}/rust-snapshot"
 
 python do_configure() {
     import json
-    from distutils.version import LooseVersion
     try:
         import configparser
     except ImportError:
@@ -416,9 +454,6 @@ python do_configure() {
     config.set("rust", "rpath", e(True))
     config.set("rust", "channel", e("stable"))
 
-    if LooseVersion(d.getVar("PV")) < LooseVersion("1.32.0"):
-        config.set("rust", "use-jemalloc", e(False))
-
     # Whether or not to optimize the compiler and standard library
     config.set("rust", "optimize", e(True))
 
@@ -445,7 +480,18 @@ python do_configure() {
     # nothing about when trying to build some stage0 tools (like fabricate)
     config.set("build", "build", e(d.getVar("SNAPSHOT_BUILD_SYS", True)))
 
+    # [install]
+    config.add_section("install")
+    # ./x.py install doesn't have any notion of "destdir"
+    # but we can prepend ${D} to all the directories instead
+    config.set("install", "prefix",  e(d.getVar("D", True) + d.getVar("prefix", True)))
+    config.set("install", "bindir",  e(d.getVar("D", True) + d.getVar("bindir", True)))
+    config.set("install", "libdir",  e(d.getVar("D", True) + d.getVar("libdir", True)))
+    config.set("install", "datadir", e(d.getVar("D", True) + d.getVar("datadir", True)))
+    config.set("install", "mandir",  e(d.getVar("D", True) + d.getVar("mandir", True)))
+
     with open("config.toml", "w") as f:
+        f.write('changelog-seen = 2\n\n')
         config.write(f)
 
     # set up ${WORKDIR}/cargo_home
@@ -482,7 +528,9 @@ rust_do_install () {
     cp -pRd build/${HOST_SYS}/stage2/lib/* ${D}${libdir}
     # Remove absolute symlink so bitbake doesn't complain
     rm -f ${D}${libdir}/rustlib/src/rust
+}
 
+rust_install_targets() {
     # Install our custom target.json files
     local td="${D}${libdir}/rustlib/"
     install -d "$td"
@@ -494,5 +542,6 @@ rust_do_install () {
 
 do_install () {
     rust_do_install
+    rust_install_targets
 }
 # ex: sts=4 et sw=4 ts=8

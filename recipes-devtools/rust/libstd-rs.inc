@@ -2,17 +2,26 @@ SUMMARY = "Rust standard libaries"
 HOMEPAGE = "http://www.rust-lang.org"
 SECTION = "devel"
 LICENSE = "MIT | Apache-2.0"
+LIC_FILES_CHKSUM = "file://../../COPYRIGHT;md5=93a95682d51b4cb0a633a97046940ef0"
 
 RUSTLIB_DEP = ""
 inherit cargo
 
 DEPENDS_append_libc-musl = " libunwind"
+# rv32 does not have libunwind ported yet
+DEPENDS_remove_riscv32 = "libunwind"
+DEPENDS_remove_riscv64 = "libunwind"
+
+# Embed bitcode in order to allow compiling both with and without LTO
+RUSTFLAGS += "-Cembed-bitcode=yes"
 # Needed so cargo can find libbacktrace
 RUSTFLAGS += "-L ${STAGING_LIBDIR} -C link-arg=-Wl,-soname,libstd.so"
 
 S = "${RUSTSRC}/src/libstd"
 
+CARGO_FEATURES ?= "panic-unwind backtrace"
 CARGO_BUILD_FLAGS += "--features '${CARGO_FEATURES}'"
+CARGO_VENDORING_DIRECTORY = "${RUSTSRC}/vendor"
 
 do_compile_prepend () {
     export CARGO_TARGET_DIR="${B}"

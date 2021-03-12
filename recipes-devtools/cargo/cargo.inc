@@ -7,6 +7,8 @@ DEPENDS = "openssl zlib curl ca-certificates libssh2"
 
 LIC_FILES_CHKSUM = " \
     file://LICENSE-MIT;md5=b377b220f43d747efdec40d69fcaa69d \
+    file://LICENSE-APACHE;md5=71b224ca933f0676e26d5c2e2271331c \
+    file://LICENSE-THIRD-PARTY;md5=f257ad009884cb88a3a87d6920e7180a \
 "
 
 SRC_URI += "file://0001-Disable-http2.patch"
@@ -29,7 +31,7 @@ do_compile_prepend () {
 
 do_install () {
 	install -d "${D}${bindir}"
-	install -m 755 "${RUSTSRC}/target/${CARGO_TARGET_SUBDIR}/cargo" "${D}${bindir}"
+	install -m 755 "${B}/target/${CARGO_TARGET_SUBDIR}/cargo" "${D}${bindir}"
 }
 
 # Disabled due to incompatibility with libgit2 0.28.x (https://github.com/rust-lang/git2-rs/issues/458, https://bugs.gentoo.org/707746#c1)
@@ -43,6 +45,7 @@ export LIBSSH2_SYS_USE_PKG_CONFIG = "1"
 
 BBCLASSEXTEND = "native"
 
-# When building cargo-native we don't have a built cargo to use so we must use
-# the snapshot to bootstrap the build of cargo
+# When building cargo-native we don't have cargo-native to use and depend on,
+# so we must use the locally set up snapshot to bootstrap the build.
+BASEDEPENDS_remove_class-native = "cargo-native"
 CARGO_class-native = "${WORKDIR}/${CARGO_SNAPSHOT}/bin/cargo"

@@ -1,11 +1,13 @@
 SUMMARY = "LLVM compiler framework (packaged with rust)"
 LICENSE ?= "Apache-2.0-with-LLVM-exception"
 
-SRC_URI += "file://0002-llvm-allow-env-override-of-exe-path.patch"
+SRC_URI += "file://0001-nfc-Fix-missing-include.patch;striplevel=2 \
+            file://0002-llvm-allow-env-override-of-exe-path.patch;striplevel=2 \
+            "
 
 S = "${RUSTSRC}/src/llvm-project/llvm"
 
-LIC_FILES_CHKSUM ?= "file://LICENSE.TXT;md5=4c0bc17c954e99fd547528d938832bfa"
+LIC_FILES_CHKSUM = "file://LICENSE.TXT;md5=8a15a0759ef07f2682d2ba4b893c9afe"
 
 inherit cmake python3native
 
@@ -19,7 +21,7 @@ LLVM_DIR = "llvm${LLVM_RELEASE}"
 
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_TARGETS_TO_BUILD='X86;ARM;AArch64;PowerPC;Mips' \
+    -DLLVM_TARGETS_TO_BUILD='ARM;AArch64;Mips;PowerPC;RISCV;X86' \
     -DLLVM_ENABLE_PROJECTS=clang \
     -DLLVM_BUILD_DOCS=OFF \
     -DLLVM_ENABLE_TERMINFO=OFF \
@@ -47,9 +49,9 @@ INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 
 export YOCTO_ALTERNATE_EXE_PATH = "${STAGING_LIBDIR}/llvm-rust/bin/llvm-config"
 
-do_install_append_class-target() {
-    # Disable checks on the native tools, since these should came from the native recipe
-    sed -i -e 's/\(.*APPEND.*_IMPORT_CHECK_FILES_FOR_.*{_IMPORT_PREFIX}\/bin\/.*\)/#\1/' ${D}/usr/share/llvm/cmake/LLVMExports-noconfig.cmake
+do_install_append () {
+    # we don't need any of this stuff to build Rust
+    rm -rf "${D}/usr/lib/cmake"
 }
 
 PACKAGES =+ "${PN}-bugpointpasses ${PN}-llvmhello ${PN}-liblto"
